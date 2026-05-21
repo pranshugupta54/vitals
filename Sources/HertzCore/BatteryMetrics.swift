@@ -48,11 +48,9 @@ public struct DeviceBattery: Identifiable {
 /// Reads the battery: charge state from the power-sources API, and
 /// health/cycles/temperature/adapter from the AppleSmartBattery registry.
 public final class BatteryMetrics {
-    // "Time on AC" — counted from a not-AC → AC transition this process saw.
-    // If Hertz launched while already on AC, the transition was missed and
-    // no time is shown until the next real plug-in.
+    // "Time on AC" — counted from when this process first saw the Mac on AC
+    // (or from the moment it was plugged in, if Hertz was already running).
     private var acSince: Date?
-    private var previousOnAC: Bool?
 
     public init() {}
 
@@ -82,13 +80,11 @@ public final class BatteryMetrics {
             }
         }
         // --- time on AC ---
-        if let prev = previousOnAC, snap.onAC, !prev {
-            acSince = Date() // just plugged in
-        }
-        if !snap.onAC {
+        if snap.onAC {
+            if acSince == nil { acSince = Date() } // start counting
+        } else {
             acSince = nil
         }
-        previousOnAC = snap.onAC
         if let since = acSince {
             snap.acMinutes = max(0, Int(Date().timeIntervalSince(since) / 60))
         }

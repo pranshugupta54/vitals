@@ -304,10 +304,15 @@ private struct BatterySection: View {
         return parts.joined(separator: "   ·   ")
     }
 
+    private var icon: String {
+        if battery.charging { return "bolt.fill" }
+        if battery.onAC { return "powerplug.fill" }
+        return "battery.100"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(icon: battery.charging ? "bolt.fill" : "battery.100",
-                          title: "BATTERY") {
+            SectionHeader(icon: icon, title: "BATTERY") {
                 if battery.present {
                     Headline(value: battery.percent, fractionDigits: 0,
                              color: batteryColor(battery.percent))
