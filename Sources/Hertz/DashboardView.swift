@@ -21,10 +21,11 @@ struct DashboardView: View {
                 divider
                 DiskSection(disk: model.disk)
                 divider
-                NetworkSection(net: model.network)
-                if model.battery.present {
+                NetworkSection(net: model.network, history: model.networkHistory)
+                if model.battery.present || !model.deviceBatteries.isEmpty {
                     divider
-                    BatterySection(battery: model.battery)
+                    BatterySection(battery: model.battery,
+                                   devices: model.deviceBatteries)
                 }
                 divider
                 ProcessSection(roots: model.processTree, sortByMemory: $sortByMemory)
@@ -214,6 +215,7 @@ private struct DiskSection: View {
 
 private struct NetworkSection: View {
     let net: NetSnapshot
+    let history: [Double]
 
     private var detail: String {
         var parts: [String] = []
@@ -233,6 +235,7 @@ private struct NetworkSection: View {
                         .foregroundStyle(.green)
                 }
             }
+            Sparkline(values: history).frame(height: 26)
             HStack(spacing: 24) {
                 NetStat(symbol: "arrow.down", label: "download", rate: net.down)
                 NetStat(symbol: "arrow.up", label: "upload", rate: net.up)
@@ -267,6 +270,7 @@ private struct NetworkSection: View {
 
 private struct BatterySection: View {
     let battery: BatterySnapshot
+    let devices: [DeviceBattery]
 
     private var status: String {
         if battery.charging {
@@ -299,11 +303,48 @@ private struct BatterySection: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(icon: battery.charging ? "bolt.fill" : "battery.100",
                           title: "BATTERY") {
-                Headline(value: battery.percent, fractionDigits: 0,
-                         color: batteryColor(battery.percent))
+                if battery.present {
+                    Headline(value: battery.percent, fractionDigits: 0,
+                             color: batteryColor(battery.percent))
+                }
             }
-            Bar(fraction: battery.percent / 100, color: batteryColor(battery.percent))
-            DetailLine(text: detail)
+            if battery.present {
+                Bar(fraction: battery.percent / 100,
+                    color: batteryColor(battery.percent))
+                DetailLine(text: detail)
+            }
+            ForEach(devices) { device in
+                AccessoryRow(device: device)
+            }
+        }
+    }
+
+    /// One connected accessory — Magic Mouse / Keyboard / Trackpad.
+    private struct AccessoryRow: View {
+        let device: DeviceBattery
+
+        private var icon: String {
+            let name = device.name.lowercased()
+            if name.contains("mouse") { return "magicmouse" }
+            if name.contains("keyboard") { return "keyboard" }
+            if name.contains("trackpad") { return "trackpad" }
+            return "dot.radiowaves.right"
+        }
+
+        var body: some View {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(device.name)
+                    .font(.system(size: 12))
+                Spacer()
+                Text("\(device.percent)%")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(batteryColor(Double(device.percent)))
+            }
         }
     }
 }

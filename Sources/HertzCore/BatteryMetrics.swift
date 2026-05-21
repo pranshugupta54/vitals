@@ -30,6 +30,18 @@ public struct BatterySnapshot {
     }
 }
 
+/// Battery level of a connected Apple HID accessory (Magic Mouse, Keyboard,
+/// Trackpad).
+public struct DeviceBattery: Identifiable {
+    public let name: String
+    public let percent: Int
+    public var id: String { name }
+    public init(name: String, percent: Int) {
+        self.name = name
+        self.percent = percent
+    }
+}
+
 /// Reads the battery: charge state from the power-sources API, and
 /// health/cycles/temperature/adapter from the AppleSmartBattery registry.
 public final class BatteryMetrics {
@@ -90,6 +102,36 @@ public final class BatteryMetrics {
             snap.adapterWatts = intValue(adapter["Watts"])
         }
         return snap
+    }
+
+    /// Battery levels of connected Apple HID accessories — these expose a
+    /// `BatteryPercent` property on their HID event service.
+    public func accessories() -> [DeviceBattery] {
+        var devices: [DeviceBattery] = []
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(
+            kIOMainPortDefault,
+            IOServiceMatching("AppleDeviceManagementHIDEventService"),
+            &iterator) == KERN_SUCCESS
+        else { return [] }
+        defer { IOObjectRelease(iterator) }
+
+        var service = IOIteratorNext(iterator)
+        while service != 0 {
+            var unmanaged: Unmanaged<CFMutableDictionary>?
+            if IORegistryEntryCreateCFProperties(service, &unmanaged,
+                                                 kCFAllocatorDefault, 0) == KERN_SUCCESS,
+               let dict = unmanaged?.takeRetainedValue() as? [String: Any] {
+                let percent = intValue(dict["BatteryPercent"])
+                if percent > 0 {
+                    let name = (dict["Product"] as? String) ?? "Accessory"
+                    devices.append(DeviceBattery(name: name, percent: percent))
+                }
+            }
+            IOObjectRelease(service)
+            service = IOIteratorNext(iterator)
+        }
+        return devices
     }
 }
 
