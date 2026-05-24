@@ -16,7 +16,7 @@ public func computeHealth(cpu: CPUSnapshot, memory: MemorySnapshot,
     -> HealthSummary {
     var penalty = 0.0
     penalty += max(0, cpu.total - 60) * 0.35
-    penalty += max(0, memory.usedPercent - 75) * 0.60
+    penalty += max(0, memory.pressurePercent - 60) * 0.95
     penalty += max(0, disk.usedPercent - 85) * 1.60
     if battery.present, battery.healthPercent > 0 {
         penalty += max(0, 80 - battery.healthPercent) * 0.50

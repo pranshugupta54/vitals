@@ -21,19 +21,41 @@ public struct CPUSnapshot {
 }
 
 /// System-wide memory.
+public enum MemoryPressureLevel: Int {
+    case unknown = 0
+    case normal = 1
+    case warning = 2
+    case critical = 4
+
+    public static func fromKernelValue(_ rawValue: Int) -> MemoryPressureLevel {
+        switch rawValue {
+        case 1: return .normal
+        case 2: return .warning
+        case 4: return .critical
+        default: return .unknown
+        }
+    }
+}
+
 public struct MemorySnapshot {
     public var total: UInt64
     public var used: UInt64
     public var free: UInt64
     public var usedPercent: Double
+    public var pressurePercent: Double
+    public var pressureLevel: MemoryPressureLevel
     public var swapUsed: UInt64
     public var swapTotal: UInt64
     public init(total: UInt64 = 0, used: UInt64 = 0, free: UInt64 = 0,
-                usedPercent: Double = 0, swapUsed: UInt64 = 0, swapTotal: UInt64 = 0) {
+                usedPercent: Double = 0, pressurePercent: Double = 0,
+                pressureLevel: MemoryPressureLevel = .unknown,
+                swapUsed: UInt64 = 0, swapTotal: UInt64 = 0) {
         self.total = total
         self.used = used
         self.free = free
         self.usedPercent = usedPercent
+        self.pressurePercent = pressurePercent
+        self.pressureLevel = pressureLevel
         self.swapUsed = swapUsed
         self.swapTotal = swapTotal
     }
@@ -180,6 +202,8 @@ public final class SystemMetrics {
         var swap = xsw_usage()
         var swapSize = MemoryLayout<xsw_usage>.size
         sysctlbyname("vm.swapusage", &swap, &swapSize, nil, 0)
+        let pressureLevel = memoryPressureLevel()
+        let pressurePercent = memoryPressurePercent(level: pressureLevel)
 
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(
@@ -191,6 +215,8 @@ public final class SystemMetrics {
         }
         guard kr == KERN_SUCCESS else {
             return MemorySnapshot(total: total, used: 0, free: total, usedPercent: 0,
+                                  pressurePercent: pressurePercent,
+                                  pressureLevel: pressureLevel,
                                   swapUsed: swap.xsu_used, swapTotal: swap.xsu_total)
         }
 
@@ -200,8 +226,42 @@ public final class SystemMetrics {
             + UInt64(stats.compressor_page_count)) * page
         let free = total > used ? total - used : 0
         let pct = total > 0 ? Double(used) / Double(total) * 100 : 0
+        let resolvedPressure = pressureLevel == .unknown && pressurePercent == 0
+            ? pct
+            : pressurePercent
         return MemorySnapshot(total: total, used: used, free: free, usedPercent: pct,
+                              pressurePercent: resolvedPressure,
+                              pressureLevel: pressureLevel,
                               swapUsed: swap.xsu_used, swapTotal: swap.xsu_total)
+    }
+
+    /// macOS exposes the same coarse memory-pressure state that dispatch and
+    /// Chromium use: 1 normal, 2 warning, 4 critical.
+    private func memoryPressureLevel() -> MemoryPressureLevel {
+        var raw: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("kern.memorystatus_vm_pressure_level",
+                           &raw, &size, nil, 0) == 0 else {
+            return .unknown
+        }
+        return MemoryPressureLevel.fromKernelValue(Int(raw))
+    }
+
+    /// `vm.memory_pressure` is a kernel-maintained 0-100 signal when
+    /// available. Some systems mask it, so fall back to a stable midpoint for
+    /// the coarse pressure band instead of inventing precision from page counts.
+    private func memoryPressurePercent(level: MemoryPressureLevel) -> Double {
+        var raw: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        if sysctlbyname("vm.memory_pressure", &raw, &size, nil, 0) == 0 {
+            return min(100, max(0, Double(raw)))
+        }
+        switch level {
+        case .normal: return 35
+        case .warning: return 72
+        case .critical: return 94
+        case .unknown: return 0
+        }
     }
 
     /// statfs on the boot volume for space + filesystem type, plus IOKit

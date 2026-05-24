@@ -133,9 +133,30 @@ private struct MemorySection: View {
     let history: [Double]
 
     private var freePercent: Int { Int((100 - mem.usedPercent).rounded()) }
+    private var pressureLabel: String {
+        switch mem.pressureLevel {
+        case .normal: return "normal"
+        case .warning: return "warning"
+        case .critical: return "critical"
+        case .unknown: return "usage"
+        }
+    }
+
+    private var pressureColor: Color {
+        switch mem.pressureLevel {
+        case .normal: return .green
+        case .warning: return .yellow
+        case .critical: return .red
+        case .unknown: return loadColor(mem.pressurePercent)
+        }
+    }
 
     private var footer: String {
+        let pressure = mem.pressureLevel == .unknown
+            ? "Pressure unavailable"
+            : "Pressure \(pressureLabel) \(Int(mem.pressurePercent.rounded()))%"
         var parts = [
+            pressure,
             "Used \(Int(mem.usedPercent.rounded()))%  \(fmtMem(mem.used))",
             "Free \(freePercent)%  \(fmtMem(mem.free))"
         ]
@@ -148,15 +169,32 @@ private struct MemorySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(icon: "memorychip", title: "MEMORY") {
-                Headline(value: mem.usedPercent, fractionDigits: 0,
-                         color: loadColor(mem.usedPercent))
+                HStack(spacing: 8) {
+                    PressureBadge(label: pressureLabel, color: pressureColor)
+                    Headline(value: mem.usedPercent, fractionDigits: 0,
+                             color: loadColor(mem.usedPercent))
+                }
             }
             Sparkline(values: history,
-                      color: loadColor(mem.usedPercent),
+                      color: pressureColor,
                       fixedCeiling: 100)
                 .frame(height: 30)
             DetailLine(text: footer)
         }
+    }
+}
+
+private struct PressureBadge: View {
+    let label: String
+    let color: Color
+
+    var body: some View {
+        Text(label.uppercased())
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.12)))
     }
 }
 

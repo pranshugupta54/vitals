@@ -79,7 +79,7 @@ sequenceDiagram
 
 | File | Provides | OS interface |
 | --- | --- | --- |
-| `SystemMetrics.swift` | CPU, memory, disk, network, hardware info | Mach `host_*`, `sysctl`, `statfs`, IOKit, `getifaddrs`, CoreWLAN |
+| `SystemMetrics.swift` | CPU, memory pressure, disk, network, hardware info | Mach `host_*`, `sysctl`, `statfs`, IOKit, `getifaddrs`, CoreWLAN |
 | `ProcessCollector.swift` | process list — pid, name, CPU, memory, path | `libproc` |
 | `ProcessTree.swift` | parent/child forest + subtree CPU/memory sums | (pure transform of the process list) |
 | `BatteryMetrics.swift` | charge, health, cycles, temperature, wattage | IOKit power sources + `AppleSmartBattery` registry |
@@ -100,6 +100,9 @@ These were all found and fixed against `top` / Activity Monitor / `ioreg`:
   a tick-weighted ratio skews on Apple silicon as cores park.
 - **Process memory** — physical footprint (`proc_pid_rusage`), not RSS.
   Matches Activity Monitor's "Memory" column.
+- **Memory pressure** — uses the kernel pressure sysctls when available:
+  `vm.memory_pressure` for the 0-100 signal and
+  `kern.memorystatus_vm_pressure_level` for the normal/warning/critical band.
 - **Disk** — the physical-disk view (whole volume), not `df`'s per-volume
   "used", which hides other APFS volumes and snapshots.
 
