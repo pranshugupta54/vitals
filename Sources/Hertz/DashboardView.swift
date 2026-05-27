@@ -439,11 +439,16 @@ private struct BatterySection: View {
 
 // MARK: - Processes
 
+private enum ProcessLayout {
+    static let rowHeight: CGFloat = 20
+    static let rowSpacing: CGFloat = 6
+    static let maxExpandedRowsHeight: CGFloat = 220
+}
+
 private struct ProcessSection: View {
     let roots: [ProcessNode]
     @Binding var sortByMemory: Bool
     @State private var expanded: Set<pid_t> = []
-    private let maxExpandedRowsHeight: CGFloat = 220
 
     private func metric(_ n: ProcessNode) -> Double {
         sortByMemory ? Double(n.subtreeMemory) : n.subtreeCPU
@@ -503,6 +508,9 @@ private struct ProcessSection: View {
 
     var body: some View {
         let rows = visibleRows
+        let expandedRowsHeight = CGFloat(rows.count) * ProcessLayout.rowHeight
+            + CGFloat(max(0, rows.count - 1)) * ProcessLayout.rowSpacing
+        let scrollHeight = min(ProcessLayout.maxExpandedRowsHeight, expandedRowsHeight)
 
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
@@ -524,12 +532,12 @@ private struct ProcessSection: View {
 
             if rows.count > 8 {
                 ScrollView(.vertical) {
-                    LazyVStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: ProcessLayout.rowSpacing) {
                         rowsView(rows)
                     }
                     .padding(.trailing, 4)
                 }
-                .frame(maxHeight: maxExpandedRowsHeight)
+                .frame(height: scrollHeight)
             } else {
                 rowsView(rows)
             }
@@ -591,6 +599,7 @@ private struct ProcessRow: View {
                 .foregroundStyle(sortByMemory ? .primary : .secondary)
         }
         .font(.system(size: 12))
+        .frame(height: ProcessLayout.rowHeight)
         .contentShape(Rectangle())
         .onTapGesture { if hasChildren { onToggle() } }
     }
