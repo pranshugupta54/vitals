@@ -11,9 +11,6 @@ private func notifyRegisterCheck(_ name: UnsafePointer<CChar>,
 private func notifyGetState(_ token: Int32,
                             _ state: UnsafeMutablePointer<UInt64>) -> UInt32
 
-@_silgen_name("notify_cancel")
-private func notifyCancel(_ token: Int32) -> UInt32
-
 /// System-wide CPU, sampled per core.
 public enum ThermalPressure: Int {
     case unknown = -1
@@ -203,12 +200,6 @@ public final class SystemMetrics {
     private var hasThermalPressureToken = false
 
     public init() {}
-
-    deinit {
-        if hasThermalPressureToken {
-            _ = notifyCancel(thermalPressureToken)
-        }
-    }
 
     /// host_processor_info(PROCESSOR_CPU_LOAD_INFO) — per-core tick counters
     /// [user, system, idle, nice]. Load averages come from getloadavg.
