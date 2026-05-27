@@ -249,6 +249,41 @@ do {
     }
 }
 
+// MARK: - Cleanup Scout safety
+
+do {
+    let fm = FileManager.default
+    let tempHome = fm.temporaryDirectory
+        .appendingPathComponent("hertz-cleanup-scout-\(UUID().uuidString)",
+                                isDirectory: true)
+    defer { try? fm.removeItem(at: tempHome) }
+
+    let npmLogs = tempHome.appendingPathComponent(".npm/_logs", isDirectory: true)
+    try? fm.createDirectory(at: npmLogs, withIntermediateDirectories: true)
+    let logFile = npmLogs.appendingPathComponent("debug.log")
+    try? Data(repeating: 7, count: 4096).write(to: logFile)
+
+    let protectedPrefs = tempHome.appendingPathComponent("Library/Preferences",
+                                                         isDirectory: true)
+    try? fm.createDirectory(at: protectedPrefs, withIntermediateDirectories: true)
+    let protectedFile = protectedPrefs.appendingPathComponent("keep.plist")
+    try? Data(repeating: 1, count: 4096).write(to: protectedFile)
+
+    let scout = CleanupScout(homeDirectory: tempHome)
+    let scan = scout.scan()
+    let foundNPM = scan.candidates.contains { $0.path == npmLogs.path }
+    let foundProtected = scan.candidates.contains { $0.path.hasPrefix(protectedPrefs.path) }
+    let result = scout.clean(scan.candidates)
+    let cleanedLog = !fm.fileExists(atPath: logFile.path)
+    let keptProtected = fm.fileExists(atPath: protectedFile.path)
+
+    check("Cleanup Scout safe cache guard",
+          foundNPM && !foundProtected && cleanedLog && keptProtected
+          && result.cleanedBytes > 0,
+          "found npm logs \(foundNPM), protected prefs kept \(keptProtected), "
+          + "cleaned \(fmtGB(result.cleanedBytes))")
+}
+
 // MARK: - SMC sensors
 
 do {
@@ -329,6 +364,9 @@ exit(failures == 0 ? 0 : 1)
 // MARK: - Local format helper
 
 func fmtGB(_ bytes: UInt64) -> String {
+    if bytes < 1_048_576 {
+        return String(format: "%.0f KB", Double(bytes) / 1024)
+    }
     let gb = Double(bytes) / 1_073_741_824
     if gb >= 1 { return String(format: "%.1f GB", gb) }
     return String(format: "%.0f MB", Double(bytes) / 1_048_576)

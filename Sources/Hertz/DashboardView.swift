@@ -7,6 +7,7 @@ struct DashboardView: View {
     let model: MetricsModel
     let updater: UpdateChecker
     @State private var sortByMemory = false
+    @State private var cleanup = CleanupModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,6 +30,8 @@ struct DashboardView: View {
                 }
                 divider
                 ProcessSection(roots: model.processTree, sortByMemory: $sortByMemory)
+                divider
+                CleanupSection(model: cleanup)
             }
 
             divider
@@ -605,6 +608,146 @@ private struct ProcessRow: View {
     }
 }
 
+// MARK: - Cleanup
+
+private struct CleanupSection: View {
+    let model: CleanupModel
+    @State private var confirmClean = false
+
+    private var visibleCandidates: [CleanupCandidate] {
+        Array(model.scan.candidates.prefix(6))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(icon: "sparkles", title: "CLEANUP SCOUT") {
+                HStack(spacing: 8) {
+                    if model.hasCandidates {
+                        Button {
+                            model.copyReport()
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Copy cleanup report")
+
+                        Button {
+                            confirmClean = true
+                        } label: {
+                            Label("Clean", systemImage: "trash")
+                                .font(.caption2)
+                                .foregroundStyle(.green)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(model.isCleaning || model.isScanning)
+                        .help("Clean listed safe caches")
+                    }
+
+                    Button {
+                        model.scanNow()
+                    } label: {
+                        Label(model.hasCandidates ? "Rescan" : "Scan",
+                              systemImage: "magnifyingglass")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.isScanning || model.isCleaning)
+                    .help("Scan safe cleanup candidates")
+                }
+            }
+
+            HStack(spacing: 8) {
+                Text(model.hasCandidates ? fmtMem(model.scan.totalBytes) : "Read-only first")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(model.hasCandidates ? .green : .secondary)
+                Text(model.status)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            if !visibleCandidates.isEmpty {
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(visibleCandidates) { candidate in
+                            CleanupRow(candidate: candidate) {
+                                model.reveal(candidate)
+                            }
+                        }
+                    }
+                    .padding(.trailing, 4)
+                }
+                .frame(height: min(142, CGFloat(visibleCandidates.count) * 22
+                               + CGFloat(max(0, visibleCandidates.count - 1)) * 6))
+            } else {
+                DetailLine(text: "Hertz only scans known regenerable caches and refuses protected paths.")
+            }
+        }
+        .confirmationDialog("Clean \(model.scan.candidates.count) safe cache groups?",
+                            isPresented: $confirmClean) {
+            Button("Clean Safe Caches", role: .destructive) {
+                model.cleanSafeCandidates()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes only the listed low-risk cache contents. User data, preferences, app support, and system paths are not touched.")
+        }
+    }
+}
+
+private struct CleanupRow: View {
+    let candidate: CleanupCandidate
+    let reveal: () -> Void
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "checkmark.shield")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.green)
+                .frame(width: 14)
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    Text(candidate.title)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(candidate.category.uppercased())
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.primary.opacity(0.08)))
+                }
+                Text(candidate.reason)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Text(fmtMem(candidate.bytes))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .frame(width: 58, alignment: .trailing)
+
+            Button(action: reveal) {
+                Image(systemName: "arrow.up.forward.square")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Reveal in Finder")
+        }
+        .font(.system(size: 12))
+        .frame(height: 22)
+    }
+}
+
 private struct FooterBar: View {
     let updater: UpdateChecker
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -882,6 +1025,9 @@ func batteryColor(_ pct: Double) -> Color {
 }
 
 func fmtMem(_ bytes: UInt64) -> String {
+    if bytes < 1_048_576 {
+        return String(format: "%.0f KB", Double(bytes) / 1024)
+    }
     let mb = Double(bytes) / 1_048_576
     if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
     return String(format: "%.0f MB", mb)

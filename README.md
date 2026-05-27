@@ -54,6 +54,8 @@ manual check in the footer. Nothing to do.
   plus connected accessories (mouse, keyboard, trackpad)
 - **Processes** — a tree grouped by app, with subtree CPU/memory totals,
   sortable by CPU or memory
+- **Cleanup Scout** — read-only scan of safe developer caches, with review,
+  reveal, report copy, and confirmed cleanup buttons
 - **Health score** — a composite 0–100 at a glance
 - **Hardware header** — chip, cores, RAM, macOS version, uptime
 
@@ -70,9 +72,16 @@ Everything is read directly from the OS — no shelling out, no polling `top`:
 | Battery | IOKit power sources + the `AppleSmartBattery` registry |
 | Temperature / fans | the `AppleSMC` user client |
 | Network | `getifaddrs` + CoreWLAN |
+| Cleanup Scout | FileManager scan of allowlisted user cache paths |
 
 Per-process CPU and memory match Activity Monitor — CPU-time deltas converted
 from Mach absolute-time units, memory reported as physical footprint (not RSS).
+
+Cleanup Scout is inspired by Mole's MIT-licensed safety model: review first,
+known cache locations only, protected paths refused, and destructive work gated
+behind explicit confirmation. Hertz implements its scanner independently in
+Swift, with no Mole source copied, and starts with the safest regenerable
+developer caches only.
 
 ## Requirements
 

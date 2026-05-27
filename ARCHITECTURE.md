@@ -42,6 +42,7 @@ flowchart TB
         sys["SystemMetrics"]
         proc["ProcessCollector → ProcessTree"]
         bat["BatteryMetrics"]
+        clean["CleanupScout"]
         smc["SMC"]
         health["HealthScore"]
     end
@@ -83,6 +84,7 @@ sequenceDiagram
 | `ProcessCollector.swift` | process list — pid, name, CPU, memory, path | `libproc` |
 | `ProcessTree.swift` | parent/child forest + subtree CPU/memory sums | (pure transform of the process list) |
 | `BatteryMetrics.swift` | charge, health, cycles, temperature, battery/adapter wattage | IOKit power sources + `AppleSmartBattery` registry |
+| `CleanupScout.swift` | read-only cache scan + confirmed cleanup of allowlisted safe paths | `FileManager` |
 | `SMC.swift` | CPU temperature, fan speed | the `AppleSMC` user client |
 | `HealthScore.swift` | composite 0–100 score | (pure function of the snapshots) |
 
@@ -118,6 +120,7 @@ command and must report `ALL CHECKS PASSED`.
 | --- | --- |
 | `HertzApp.swift` | `@main` App — `MenuBarExtra` (`.window` style), starts `UpdateChecker` |
 | `MetricsModel.swift` | `@Observable` state + the 2s refresh timer |
+| `CleanupModel.swift` | user-triggered cleanup scan/clean state |
 | `DashboardView.swift` | the whole dropdown UI — sectioned vertical panel |
 | `UpdateChecker.swift` | auto-update from GitHub Releases |
 
@@ -142,12 +145,22 @@ command and must report `ALL CHECKS PASSED`.
 │     ▸ App (9)                  12.4   1.2 GB   │  process tree,
 │        helper                   0.4   350 MB  │  expandable
 ├──────────────────────────────────────────────┤
+│  ✦ CLEANUP SCOUT                 Scan/Clean   │
+│     Read-only safe cache review, then confirm │
+├──────────────────────────────────────────────┤
 │  ∿ Hertz 0.1.0  ⟳            ☑ Login    Quit ⏻ │  footer
 └──────────────────────────────────────────────┘
 ```
 
 One vertical instrument panel divided by hairlines. UI stays flat and native —
 no gradients, no faux-glass.
+
+Cleanup Scout is deliberately not part of the 2-second metrics loop. Users
+start a scan manually, review low-risk cache groups, can reveal or copy a
+report, and then confirm cleanup. The scanner only emits allowlisted paths
+under the current user's home directory and refuses broad user-data roots such
+as Documents, Application Support, Containers, Preferences, Mail, Messages,
+Keychains, and system locations.
 
 ## Auto-update
 
