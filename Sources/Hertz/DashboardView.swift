@@ -8,35 +8,48 @@ struct DashboardView: View {
     let updater: UpdateChecker
     @State private var sortByMemory = false
 
+    private var menuMaxHeight: CGFloat {
+        let pointer = NSEvent.mouseLocation
+        let activeScreen = NSScreen.screens.first { screen in
+            NSMouseInRect(pointer, screen.frame, false)
+        } ?? NSScreen.main
+        let visibleHeight = activeScreen?.visibleFrame.height ?? 720
+        return max(420, min(720, visibleHeight - 48))
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HeaderStrip(hardware: model.hardware, health: model.health)
-                .padding(.bottom, 10)
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 0) {
+                HeaderStrip(hardware: model.hardware, health: model.health)
+                    .padding(.bottom, 10)
 
-            Group {
-                CPUSection(cpu: model.cpu, history: model.cpuHistory,
-                           sensors: model.sensors)
-                divider
-                MemorySection(mem: model.memory, history: model.memoryHistory)
-                divider
-                DiskSection(disk: model.disk)
-                divider
-                NetworkSection(net: model.network, history: model.networkHistory)
-                if model.battery.present || !model.deviceBatteries.isEmpty {
+                Group {
+                    CPUSection(cpu: model.cpu, history: model.cpuHistory,
+                               sensors: model.sensors)
                     divider
-                    BatterySection(battery: model.battery,
-                                   devices: model.deviceBatteries)
+                    MemorySection(mem: model.memory, history: model.memoryHistory)
+                    divider
+                    DiskSection(disk: model.disk)
+                    divider
+                    NetworkSection(net: model.network, history: model.networkHistory)
+                    if model.battery.present || !model.deviceBatteries.isEmpty {
+                        divider
+                        BatterySection(battery: model.battery,
+                                       devices: model.deviceBatteries)
+                    }
+                    divider
+                    ProcessSection(roots: model.processTree, sortByMemory: $sortByMemory)
                 }
-                divider
-                ProcessSection(roots: model.processTree, sortByMemory: $sortByMemory)
-            }
 
-            divider
-            FooterBar(updater: updater)
-                .padding(.top, 9)
+                divider
+                FooterBar(updater: updater)
+                    .padding(.top, 9)
+            }
+            .padding(14)
+            .frame(width: 392)
         }
-        .padding(14)
         .frame(width: 392)
+        .frame(maxHeight: menuMaxHeight)
     }
 
     private var divider: some View {
