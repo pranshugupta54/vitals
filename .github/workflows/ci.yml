@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  release-build:
+    name: Release build
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Build app bundle
+        run: bash scripts/bundle.sh
+        env:
+          HERTZ_VERSION: v0.0.0-ci
+
+      - name: Verify bundle exists
+        run: test -d Hertz.app
