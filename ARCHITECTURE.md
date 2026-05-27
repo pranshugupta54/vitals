@@ -44,6 +44,7 @@ flowchart TB
         bat["BatteryMetrics"]
         smc["SMC"]
         health["HealthScore"]
+        diag["Diagnostics"]
     end
 
     model["MetricsModel<br/>@Observable · 2s timer"]
@@ -57,7 +58,8 @@ flowchart TB
 ```
 
 `MetricsModel` runs a 2-second timer on the main actor, calls every collector,
-and stores the snapshots. The SwiftUI views observe the model and re-render.
+stores the snapshots, derives diagnosis rows, and records a small ring buffer
+of recent pressure changes. The SwiftUI views observe the model and re-render.
 `UpdateChecker` runs independently on its own schedule.
 
 ### The refresh cycle
@@ -85,6 +87,7 @@ sequenceDiagram
 | `BatteryMetrics.swift` | charge, health, cycles, temperature, battery/adapter wattage | IOKit power sources + `AppleSmartBattery` registry |
 | `SMC.swift` | CPU temperature, fan speed | the `AppleSMC` user client |
 | `HealthScore.swift` | composite 0–100 score | (pure function of the snapshots) |
+| `Diagnostics.swift` | current bottleneck, shareable report text | (pure function of the snapshots) |
 
 ## Metric accuracy — the non-obvious bits
 
@@ -126,6 +129,9 @@ command and must report `ALL CHECKS PASSED`.
 ```
 ┌──────────────────────────────────────────────┐
 │  ● 100 Excellent · Apple M4 · 16 GB   up 1d   │  hardware header
+├──────────────────────────────────────────────┤
+│  ◉ DIAGNOSIS                         Copy ⧉  │  current bottleneck,
+│     System looks balanced                    │  recent pressure events
 ├──────────────────────────────────────────────┤
 │  ▣ CPU                                 14.9%  │
 │     ∿∿∿ sparkline ∿∿∿                          │

@@ -2,6 +2,14 @@ import Foundation
 import Observation
 import HertzCore
 
+struct FlightRecord: Identifiable {
+    let id = UUID()
+    let date: Date
+    let severity: DiagnosticSeverity
+    let title: String
+    let detail: String
+}
+
 /// Holds the latest metrics snapshot. Observed by the SwiftUI dashboard;
 /// refreshed on a timer.
 @Observable
@@ -20,8 +28,12 @@ final class MetricsModel {
     var hardware = HardwareInfo()
     var health = HealthSummary()
     var sensors = SensorSnapshot()
+    var diagnostics: [DiagnosticInsight] = []
+    var flightRecorder: [FlightRecord] = []
 
     private let historyLimit = 44
+    private let flightRecorderLimit = 12
+    private var lastFlightEventKey = ""
 
     @ObservationIgnored private let system = SystemMetrics()
     @ObservationIgnored private let batteryReader = BatteryMetrics()
@@ -49,6 +61,8 @@ final class MetricsModel {
         processes = collector.sample().sorted { $0.cpu > $1.cpu }
         processTree = buildProcessTree(processes)
         health = computeHealth(cpu: cpu, memory: memory, disk: disk, battery: battery)
+        diagnostics = diagnose(diagnosticContext)
+        recordFlightEvent()
 
         cpuHistory = trimmed(cpuHistory + [cpu.total])
         memoryHistory = trimmed(memoryHistory + [memory.pressurePercent])
@@ -59,4 +73,51 @@ final class MetricsModel {
     private func trimmed(_ values: [Double]) -> [Double] {
         values.count > historyLimit ? Array(values.suffix(historyLimit)) : values
     }
+
+    var diagnosticContext: DiagnosticContext {
+        DiagnosticContext(cpu: cpu, memory: memory, disk: disk,
+                          network: network, battery: battery,
+                          sensors: sensors, processTree: processTree,
+                          hardware: hardware, health: health)
+    }
+
+    var diagnosticReport: String {
+        var report = HertzCore.diagnosticReport(diagnosticContext)
+        if !flightRecorder.isEmpty {
+            report += "\n\nRecent events:"
+            for event in flightRecorder.prefix(6) {
+                report += "\n- \(eventDate.string(from: event.date)): "
+                    + "\(event.title) — \(event.detail)"
+            }
+        }
+        return report
+    }
+
+    private func recordFlightEvent() {
+        guard let leading = diagnostics.first,
+              leading.severity != .info else {
+            lastFlightEventKey = ""
+            return
+        }
+
+        let key = "\(leading.id)-\(leading.severity.rawValue)"
+        guard key != lastFlightEventKey else { return }
+        lastFlightEventKey = key
+
+        flightRecorder.insert(FlightRecord(date: Date(),
+                                           severity: leading.severity,
+                                           title: leading.title,
+                                           detail: leading.detail),
+                              at: 0)
+        if flightRecorder.count > flightRecorderLimit {
+            flightRecorder.removeLast(flightRecorder.count - flightRecorderLimit)
+        }
+    }
 }
+
+private let eventDate: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .medium
+    return formatter
+}()

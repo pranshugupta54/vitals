@@ -52,6 +52,8 @@ manual check in the footer. Nothing to do.
 - **Network** — up / down throughput with a trend graph, local IP, Wi-Fi SSID, VPN state
 - **Battery** — charge, live power rate, health, cycle count, temperature, adapter wattage,
   plus connected accessories (mouse, keyboard, trackpad)
+- **Diagnosis** — current bottleneck, recent pressure events, and a copyable
+  troubleshooting snapshot for support threads
 - **Processes** — a tree grouped by app, with subtree CPU/memory totals,
   sortable by CPU or memory
 - **Health score** — a composite 0–100 at a glance
@@ -70,6 +72,9 @@ Everything is read directly from the OS — no shelling out, no polling `top`:
 | Battery | IOKit power sources + the `AppleSmartBattery` registry |
 | Temperature / fans | the `AppleSMC` user client |
 | Network | `getifaddrs` + CoreWLAN |
+
+Hertz also keeps a small local flight recorder of recent pressure changes, so
+the menu can explain what just became slow instead of only showing live gauges.
 
 Per-process CPU and memory match Activity Monitor — CPU-time deltas converted
 from Mach absolute-time units, memory reported as physical footprint (not RSS).

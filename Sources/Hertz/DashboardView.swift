@@ -14,6 +14,10 @@ struct DashboardView: View {
                 .padding(.bottom, 10)
 
             Group {
+                DiagnosisSection(insights: model.diagnostics,
+                                 records: model.flightRecorder,
+                                 report: model.diagnosticReport)
+                divider
                 CPUSection(cpu: model.cpu, history: model.cpuHistory,
                            sensors: model.sensors)
                 divider
@@ -92,6 +96,106 @@ private struct HeaderStrip: View {
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
+    }
+}
+
+// MARK: - Diagnosis
+
+private struct DiagnosisSection: View {
+    let insights: [DiagnosticInsight]
+    let records: [FlightRecord]
+    let report: String
+    @State private var copied = false
+
+    private var visibleInsights: [DiagnosticInsight] {
+        Array(insights.prefix(3))
+    }
+
+    private var visibleRecords: [FlightRecord] {
+        Array(records.prefix(3))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(icon: "waveform.path.ecg",
+                          title: "DIAGNOSIS") {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(report, forType: .string)
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                        copied = false
+                    }
+                } label: {
+                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .font(.caption2)
+                        .foregroundStyle(copied ? .green : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Copy a privacy-aware diagnostic snapshot")
+            }
+
+            ForEach(visibleInsights) { insight in
+                InsightRow(insight: insight)
+            }
+
+            if !visibleRecords.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("RECENT EVENTS")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                    ForEach(visibleRecords) { record in
+                        FlightRecordRow(record: record)
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+}
+
+private struct InsightRow: View {
+    let insight: DiagnosticInsight
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: severityIcon(insight.severity))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(severityColor(insight.severity))
+                .frame(width: 14)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(insight.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(insight.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct FlightRecordRow: View {
+    let record: FlightRecord
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(shortEventTime.string(from: record.date))
+                .font(.caption2)
+                .monospacedDigit()
+                .foregroundStyle(.tertiary)
+                .frame(width: 58, alignment: .leading)
+            Circle()
+                .fill(severityColor(record.severity))
+                .frame(width: 5, height: 5)
+            Text(record.title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -872,6 +976,22 @@ func batteryColor(_ pct: Double) -> Color {
     }
 }
 
+func severityColor(_ severity: DiagnosticSeverity) -> Color {
+    switch severity {
+    case .info: return .green
+    case .warning: return .yellow
+    case .critical: return .red
+    }
+}
+
+func severityIcon(_ severity: DiagnosticSeverity) -> String {
+    switch severity {
+    case .info: return "checkmark.circle.fill"
+    case .warning: return "exclamationmark.triangle.fill"
+    case .critical: return "exclamationmark.octagon.fill"
+    }
+}
+
 func fmtMem(_ bytes: UInt64) -> String {
     let mb = Double(bytes) / 1_048_576
     if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
@@ -891,3 +1011,10 @@ func fmtMinutes(_ minutes: Int) -> String {
     let m = minutes % 60
     return h > 0 ? "\(h)h \(m)m" : "\(m)m"
 }
+
+private let shortEventTime: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .medium
+    return formatter
+}()

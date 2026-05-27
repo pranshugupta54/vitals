@@ -320,6 +320,30 @@ do {
     }
 }
 
+// MARK: - Diagnostics
+
+do {
+    let system = SystemMetrics()
+    let cpu = system.cpu()
+    let memory = system.memory()
+    let disk = system.disk()
+    let network = system.network()
+    let battery = BatteryMetrics().read()
+    let sensors = SMCReader().read()
+    let processes = ProcessCollector().sample()
+    let tree = buildProcessTree(processes)
+    let health = computeHealth(cpu: cpu, memory: memory, disk: disk, battery: battery)
+    let context = DiagnosticContext(cpu: cpu, memory: memory, disk: disk,
+                                    network: network, battery: battery,
+                                    sensors: sensors, processTree: tree,
+                                    hardware: system.hardware(), health: health)
+    let insights = diagnose(context)
+    let report = diagnosticReport(context)
+    check("Diagnostics snapshot", !insights.isEmpty && report.contains("Diagnosis:")
+          && report.contains("Top CPU:"),
+          "\(insights.count) insight(s), \(report.split(separator: "\n").count) report lines")
+}
+
 // MARK: - Summary
 
 print(String(repeating: "─", count: 52))
