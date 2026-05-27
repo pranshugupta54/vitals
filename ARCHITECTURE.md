@@ -82,7 +82,7 @@ sequenceDiagram
 | `SystemMetrics.swift` | CPU, thermal pressure, memory pressure, disk, network, hardware info | Mach `host_*`, Darwin notify, `sysctl`, `statfs`, IOKit, `getifaddrs`, CoreWLAN |
 | `ProcessCollector.swift` | process list — pid, name, CPU, memory, path | `libproc` |
 | `ProcessTree.swift` | parent/child forest + subtree CPU/memory sums | (pure transform of the process list) |
-| `BatteryMetrics.swift` | charge, health, cycles, temperature, wattage | IOKit power sources + `AppleSmartBattery` registry |
+| `BatteryMetrics.swift` | charge, health, cycles, temperature, battery/adapter wattage | IOKit power sources + `AppleSmartBattery` registry |
 | `SMC.swift` | CPU temperature, fan speed | the `AppleSMC` user client |
 | `HealthScore.swift` | composite 0–100 score | (pure function of the snapshots) |
 

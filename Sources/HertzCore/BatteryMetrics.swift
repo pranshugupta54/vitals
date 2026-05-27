@@ -12,13 +12,14 @@ public struct BatterySnapshot {
     public var healthPercent: Double // current max capacity vs design
     public var cycleCount: Int
     public var temperature: Double   // °C
+    public var powerWatts: Double    // + charging, - discharging
     public var adapterWatts: Int     // 0 when not on AC
     public var acMinutes: Int        // minutes on AC, -1 if not on AC / unknown
 
     public init(present: Bool = false, percent: Double = 0, charging: Bool = false,
                 onAC: Bool = false, minutesRemaining: Int = -1,
                 healthPercent: Double = 0, cycleCount: Int = 0,
-                temperature: Double = 0, adapterWatts: Int = 0,
+                temperature: Double = 0, powerWatts: Double = 0, adapterWatts: Int = 0,
                 acMinutes: Int = -1) {
         self.present = present
         self.percent = percent
@@ -28,6 +29,7 @@ public struct BatterySnapshot {
         self.healthPercent = healthPercent
         self.cycleCount = cycleCount
         self.temperature = temperature
+        self.powerWatts = powerWatts
         self.adapterWatts = adapterWatts
         self.acMinutes = acMinutes
     }
@@ -46,7 +48,7 @@ public struct DeviceBattery: Identifiable {
 }
 
 /// Reads the battery: charge state from the power-sources API, and
-/// health/cycles/temperature/adapter from the AppleSmartBattery registry.
+/// health/cycles/temperature/power from the AppleSmartBattery registry.
 public final class BatteryMetrics {
     // "Time on AC" — seeded once per AC session with the real plug-in time
     // from the power log. If that can't be read, it stays unknown (no value
@@ -99,7 +101,7 @@ public final class BatteryMetrics {
 
         guard snap.present else { return snap }
 
-        // --- health, cycle count, temperature, adapter wattage ---
+        // --- health, cycle count, temperature, battery/adapter wattage ---
         let service = IOServiceGetMatchingService(kIOMainPortDefault,
                                                   IOServiceMatching("AppleSmartBattery"))
         guard service != 0 else { return snap }
@@ -122,6 +124,12 @@ public final class BatteryMetrics {
 
         // Temperature is reported in hundredths of a degree Celsius.
         snap.temperature = Double(intValue(dict["Temperature"])) / 100.0
+
+        let voltageMillivolts = intValue(dict["Voltage"])
+        let currentMilliamps = batteryCurrentMilliamps(dict)
+        if voltageMillivolts > 0, currentMilliamps != 0 {
+            snap.powerWatts = Double(voltageMillivolts * currentMilliamps) / 1_000_000.0
+        }
 
         if let adapter = dict["AdapterDetails"] as? [String: Any] {
             snap.adapterWatts = intValue(adapter["Watts"])
@@ -207,4 +215,10 @@ private func intValue(_ any: Any?) -> Int {
     if let n = any as? Int { return n }
     if let n = any as? NSNumber { return n.intValue }
     return 0
+}
+
+private func batteryCurrentMilliamps(_ dict: [String: Any]) -> Int {
+    let instant = intValue(dict["InstantAmperage"])
+    if instant != 0 { return instant }
+    return intValue(dict["Amperage"])
 }

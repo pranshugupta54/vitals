@@ -215,13 +215,35 @@ do {
     if snap.present {
         let out = shell("ioreg -r -c AppleSmartBattery -d1")
         var ioregCycles = -1
+        var ioregVoltage = 0
+        var ioregAmperage = 0
+        var ioregInstantAmperage = 0
         for line in out.split(separator: "\n") where line.contains("\"CycleCount\"") {
             ioregCycles = Int(firstNumber(String(line.split(separator: "=").last ?? "")) ?? -1)
         }
+        for line in out.split(separator: "\n") where line.contains("\"Voltage\"") {
+            ioregVoltage = Int(firstNumber(String(line.split(separator: "=").last ?? "")) ?? 0)
+        }
+        for line in out.split(separator: "\n") where line.contains("\"Amperage\"") {
+            let raw = String(line.split(separator: "=").last ?? "")
+                .trimmingCharacters(in: .whitespaces)
+            ioregAmperage = Int(raw) ?? 0
+        }
+        for line in out.split(separator: "\n") where line.contains("\"InstantAmperage\"") {
+            let raw = String(line.split(separator: "=").last ?? "")
+                .trimmingCharacters(in: .whitespaces)
+            ioregInstantAmperage = Int(raw) ?? 0
+        }
+        let ioregCurrent = ioregInstantAmperage != 0 ? ioregInstantAmperage : ioregAmperage
+        let ioregWatts = ioregVoltage > 0 && ioregCurrent != 0
+            ? Double(ioregVoltage * ioregCurrent) / 1_000_000.0 : 0
+        let wattsMatch = abs(ioregWatts) < 0.05 || abs(snap.powerWatts - ioregWatts) < 0.2
         check("Battery cycle count vs ioreg",
-              ioregCycles >= 0 && snap.cycleCount == ioregCycles,
+              ioregCycles >= 0 && snap.cycleCount == ioregCycles && wattsMatch,
               "collector \(snap.cycleCount) cycles, \(Int(snap.healthPercent))% health, "
-              + "\(String(format: "%.1f", snap.temperature))°C  ·  ioreg \(ioregCycles) cycles")
+              + "\(String(format: "%.1f", snap.temperature))°C, "
+              + "\(String(format: "%.1f", snap.powerWatts))W  ·  "
+              + "ioreg \(ioregCycles) cycles, \(String(format: "%.1f", ioregWatts))W")
     } else {
         check("Battery cycle count vs ioreg", true, "no battery (desktop Mac)")
     }

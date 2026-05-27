@@ -50,7 +50,7 @@ manual check in the footer. Nothing to do.
 - **Memory** — pressure, used / free / swap, with a trend graph
 - **Disk** — usage donut, free space, live read/write throughput, filesystem
 - **Network** — up / down throughput with a trend graph, local IP, Wi-Fi SSID, VPN state
-- **Battery** — charge, health, cycle count, temperature, adapter wattage,
+- **Battery** — charge, live power rate, health, cycle count, temperature, adapter wattage,
   plus connected accessories (mouse, keyboard, trackpad)
 - **Processes** — a tree grouped by app, with subtree CPU/memory totals,
   sortable by CPU or memory

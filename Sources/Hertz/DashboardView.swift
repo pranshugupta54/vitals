@@ -364,6 +364,11 @@ private struct BatterySection: View {
 
     private var detail: String {
         var parts = [status]
+        if abs(battery.powerWatts) >= 0.05 {
+            let watts = abs(battery.powerWatts)
+            parts.append(String(format: battery.powerWatts > 0
+                                ? "%.1fW charge" : "%.1fW draw", watts))
+        }
         if battery.cycleCount > 0 { parts.append("\(battery.cycleCount) cycles") }
         if battery.healthPercent > 0 {
             parts.append("\(Int(battery.healthPercent.rounded()))% health")
